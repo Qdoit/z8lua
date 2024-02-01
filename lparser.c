@@ -6,6 +6,7 @@
 
 
 #include <string.h>
+#include <stdio.h>
 
 #define lparser_c
 #define LUA_CORE
@@ -595,7 +596,7 @@ static int block_follow (LexState *ls, int withuntil) {
     case TK_ELSE: case TK_ELSEIF:
     case TK_END: case TK_EOS:
     case TK_EOL:  /* EOL indicates end of short IF or WHILE */
-      return 1;
+      return ls->emiteol > 0;
     case TK_UNTIL: return withuntil;
     default: return 0;
   }
@@ -603,14 +604,17 @@ static int block_follow (LexState *ls, int withuntil) {
 
 
 static void statlist (LexState *ls) {
+printf("<statlist...>\n");
   /* statlist -> { stat [`;'] } */
   while (!block_follow(ls, 1)) {
     if (ls->t.token == TK_RETURN) {
       statement(ls);
+printf("</statlist>\n");
       return;  /* 'return' must be last statement */
     }
     statement(ls);
   }
+printf("</statlist>\n");
 }
 
 
@@ -1292,19 +1296,25 @@ static void whilestat (LexState *ls, int line) {
   int short_while = ls->t.token != TK_DO && ls->t.token != TK_EOS
                  && ls->braces == 0 && line == ls->linenumber;
   if (short_while)
-    ls->emiteol = 1;
+    ls->emiteol += 1;
   else
     checknext(ls, TK_DO);
+  printf("    inside [while], emiteol is now %d\n", ls->emiteol);
   block(ls);
   luaK_jumpto(fs, whileinit);
   if (!short_while)
     check_match(ls, TK_END, TK_WHILE, line);
-  else if (ls->t.token == TK_EOL || ls->t.token == TK_EOS)
-    luaX_next(ls);  /* eat EOL or EOS */
-  else if (block_follow(ls, 1))
-    ls->emiteol = 0;  /* close the short WHILE */
-  else
-    check_match(ls, TK_EOL, TK_WHILE, line);  /* we expected EOL */
+  else {
+    ls->emiteol -= 1;  /* close the short WHILE */
+    if (ls->t.token == TK_EOL || ls->t.token == TK_EOS) {
+      printf("    token is TK_EO%c for [while]\n", ls->t.token == TK_EOL ? 'L' : 'S');
+      if (ls->emiteol == 0) printf("    eating token!\n");
+      if (ls->emiteol == 0) luaX_next(ls);  /* eat EOL or EOS */
+    }
+    else if (!block_follow(ls, 1))
+      check_match(ls, TK_EOL, TK_WHILE, line);  /* we expected EOL */
+  }
+  printf("    finished [while], emiteol is now %d\n", ls->emiteol);
   leaveblock(fs);
   luaK_patchtohere(fs, condexit);  /* false conditions finish the loop */
 }
@@ -1446,9 +1456,10 @@ static int test_then_block (LexState *ls, int *escapelist) {
   short_if &= ls->t.token != TK_THEN && ls->t.token != TK_EOS
            && ls->braces == 0 && line == ls->linenumber;
   if (short_if)
-    ls->emiteol = 1;
+    ls->emiteol += 1;
   else
     checknext(ls, TK_THEN);
+  printf("    inside [if], emiteol is now %d\n", ls->emiteol);
   if (ls->t.token == TK_GOTO || ls->t.token == TK_BREAK) {
     luaK_goiffalse(ls->fs, &v);  /* will jump to label if condition is true */
     enterblock(fs, &bl, 0);  /* must enter block before 'goto' */
@@ -1487,12 +1498,17 @@ static void ifstat (LexState *ls, int line) {
     block(ls);  /* `else' part */
   if (!short_if)
     check_match(ls, TK_END, TK_IF, line);
-  else if (ls->t.token == TK_EOL || ls->t.token == TK_EOS)
-    luaX_next(ls);  /* eat EOL or EOS */
-  else if (block_follow(ls, 1))
-    ls->emiteol = 0;  /* close the short IF */
-  else
-    check_match(ls, TK_EOL, TK_IF, line);  /* we expected EOL */
+  else {
+    ls->emiteol -= 1;  /* close the short IF */
+    if (ls->t.token == TK_EOL || ls->t.token == TK_EOS) {
+      printf("    token is TK_EO%c for [if]\n", ls->t.token == TK_EOL ? 'L' : 'S');
+      if (ls->emiteol == 0) printf("    eating token!\n");
+      if (ls->emiteol == 0) luaX_next(ls);  /* eat EOL or EOS */
+    }
+    else if (!block_follow(ls, 1))
+      check_match(ls, TK_EOL, TK_IF, line);  /* we expected EOL */
+  }
+  printf("    finished [if], emiteol is now %d\n", ls->emiteol);
   luaK_patchtohere(fs, escapelist);  /* patch escape list to 'if' end */
 }
 
@@ -1611,6 +1627,9 @@ static void shortprint (LexState *ls) {
   int line = ls->linenumber;
   FuncState *fs = ls->fs;
 
+  ls->emiteol += 1;
+  printf("    inside [?], emiteol is %d\n", ls->emiteol);
+
   /* same as suffixedexp() except we push "print" first */
   expdesc f;
   TString *n = luaS_new(ls->L, "print");
@@ -1628,8 +1647,12 @@ static void shortprint (LexState *ls) {
     luaK_setmultret(fs, &args);
   }
 
-  if (!testnext(ls, TK_EOS)) /* check that we are at EOL or EOS */
+printf("check1?\n");
+  if (!testnext(ls, TK_EOS)) { /* check that we are at EOL or EOS */
     check_match(ls, TK_EOL, '?', line);
+    luaX_next(ls);  /* skip <EOL> */
+  }
+printf("check1!\n");
 
   int base, nparams;
   lua_assert(f.k == VNONRELOC);
@@ -1645,6 +1668,8 @@ static void shortprint (LexState *ls) {
   init_exp(&f, VCALL, luaK_codeABC(fs, OP_CALL, base, nparams+1, 2));
   luaK_fixline(fs, line);
   fs->freereg = fs->nactvar;
+  ls->emiteol -= 1;
+  printf("    finished [?], emiteol is now %d\n", ls->emiteol);
 }
 
 
@@ -1657,14 +1682,17 @@ static void statement (LexState *ls) {
       break;
     }
     case TK_PRINT: {
+      printf("> TK_PRINT\n");
       shortprint(ls);  /* stat -> shortprint (on a single line) */
       break;
     }
     case TK_IF: {  /* stat -> ifstat */
+      printf("> TK_IF\n");
       ifstat(ls, line);
       break;
     }
     case TK_WHILE: {  /* stat -> whilestat */
+      printf("> TK_WHILE\n");
       whilestat(ls, line);
       break;
     }
@@ -1736,7 +1764,9 @@ static void mainfunc (LexState *ls, FuncState *fs) {
   newupvalue(fs, ls->envn, &v);  /* ...set environment upvalue */
   luaX_next(ls);  /* read first token */
   statlist(ls);  /* parse main body */
+printf("check2?\n");
   check(ls, TK_EOS);
+printf("check2!\n");
   close_func(ls);
 }
 
