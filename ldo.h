@@ -8,6 +8,8 @@
 #define ldo_h
 
 
+#define LUA_USE_LONGJMP 1
+
 #include "lobject.h"
 #include "lstate.h"
 #include "lzio.h"

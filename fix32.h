@@ -13,7 +13,7 @@
 #pragma once
 
 #include <stdint.h>    // int32_t, int64_t, …
-#include <cmath>       // std::abs
+#include <math.h>       // std::abs
 #include <algorithm>   // std::min
 #include <type_traits> // std::enable_if
 
@@ -43,6 +43,8 @@ struct fix32
     // does too many implicit conversions from int that we can’t mark this
     // one as explicit.
     inline fix32(int32_t x)  : m_bits(int32_t(x << 16)) {}
+    inline fix32(int x)  : m_bits(int(x << 16)) {}
+    inline fix32(size_t x)  : m_bits(size_t(x << 16)) {}
 
     inline explicit fix32(uint16_t x) : m_bits(int32_t(x << 16)) {}
     inline explicit fix32(uint32_t x) : m_bits(int32_t(x << 16)) {}

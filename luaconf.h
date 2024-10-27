@@ -74,7 +74,6 @@
 #endif
 
 
-
 /*
 @@ LUA_PATH_DEFAULT is the default path that Lua uses to look for
 @* Lua libraries.
@@ -463,7 +462,7 @@
 @@ LUA_UNSIGNED is the integral type used by lua_pushunsigned/lua_tounsigned.
 ** It must have at least 32 bits.
 */
-#define LUA_UNSIGNED	unsigned LUA_INT32
+#define LUA_UNSIGNED    uint32_t	
 
 
 
@@ -546,7 +545,7 @@
 */
 
 
-#include <cstdint> // for int16_t
+#include <stdint.h> // for int16_t
 #include "fix32.h" // for z8::fix32
 
 #undef LUA_USE_STRTODHEX
@@ -597,12 +596,12 @@
 
 #define luai_hashnum(i,n) (i = (n * z8::fix32::frombits(2654435769u)).bits())
 
-static inline z8::fix32 operator/(z8::fix32 x, int y) { return x / z8::fix32(y); }
-static inline z8::fix32 operator+(int x, z8::fix32 y) { return z8::fix32(x) + y; }
+static inline z8::fix32 operator/(z8::fix32 x, int y) { return x / z8::fix32((int32_t)y); }
+static inline z8::fix32 operator+(int x, z8::fix32 y) { return z8::fix32((int32_t)x) + y; }
 
-static inline bool operator==(z8::fix32 x, int y) { return x == z8::fix32(y); }
-static inline bool operator <(z8::fix32 x, int y) { return x  < z8::fix32(y); }
-static inline bool operator <(int x, z8::fix32 y) { return z8::fix32(x)  < y; }
+static inline bool operator==(z8::fix32 x, int y) { return x == z8::fix32((int32_t)y); }
+static inline bool operator <(z8::fix32 x, int y) { return x  < z8::fix32((int32_t)y); }
+static inline bool operator <(int x, z8::fix32 y) { return z8::fix32((int32_t)x)  < y; }
 
 #endif
 

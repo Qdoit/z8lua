@@ -1,41 +1,53 @@
-# makefile for building Lua
+# makefile for building z8lua for the DS. requires BlocksDS 
 # see INSTALL for installation instructions
 # see ../Makefile and luaconf.h for further customization
 
 # == CHANGE THE SETTINGS BELOW TO SUIT YOUR ENVIRONMENT =======================
 
+export BLOCKSDS			?= /opt/blocksds/core
+export BLOCKSDSEXT		?= /opt/blocksds/external
+
+export WONDERFUL_TOOLCHAIN	?= /opt/wonderful
+ARM_NONE_EABI_PATH	?= $(WONDERFUL_TOOLCHAIN)/toolchain/gcc-arm-none-eabi/bin/
+
 CWARNS= -pedantic -Wcast-align -Wpointer-arith -Wshadow \
         -Wsign-compare -Wundef -Wwrite-strings
-# -Wcast-qual
 
-# -DEXTERNMEMCHECK -DHARDSTACKTESTS
-# -g -DLUA_USER_H='"ltests.h"'
-# -fomit-frame-pointer #-pg -malign-double
 TESTS= -g -DLUA_USER_H='"ltests.h"'
 
 LOCAL = $(CWARNS)
 
+ARCH		:= -mthumb -mcpu=arm946e-s+nofp
+SPECS		:= $(BLOCKSDS)/sys/crts/ds_arm9.specs
 
-CC= g++
-CFLAGS= -Wall -Wno-deprecated -std=c++17 $(MYCFLAGS) -O2
+WARNFLAGS	:= -Wall -Wno-deprecated
+LIBS		:= -lmm9 -lnds9
+LIBDIRS		:= $(BLOCKSDS)/libs/maxmod \
+		   $(BLOCKSDS)/libs/libnds
+DEFINES		:=
+
+PREFIX		:= $(ARM_NONE_EABI_PATH)arm-none-eabi-
+CC 		:= $(PREFIX)g++
+LD		:= $(PREFIX)gcc
+CFLAGS  =  -std=gnu++17 $(WARNFLAGS) $(DEFINES) $(INCLUDEFLAGS) \
+		   $(ARCH) -O2 -ffunction-sections -fdata-sections \
+		   -fno-exceptions -fno-rtti \
+		   -fno-threadsafe-statics \
+		   -specs=$(SPECS)
+
+LDFLAGS		:= $(ARCH) $(LIBDIRSFLAGS) -Wl,-Map,$(MAP) $(DEFINES) \
+		   -Wl,--start-group $(LIBS) -Wl,--end-group -specs=$(SPECS)
+
 AR= ar rcu
 RANLIB= ranlib
 RM= rm -f
 
 MYCFLAGS= $(LOCAL)
-MYLDFLAGS=
+MYLDFLAGS=$(LDFLAGS)
 MYLIBS=
 
 
 # enable Linux goodies
-ifneq ($(OS),Windows_NT)
-MYCFLAGS= $(LOCAL) -DLUA_USE_LINUX
-MYLDFLAGS= -Wl,-E
-MYLIBS= -ldl
-endif
-MYLIBS= -lreadline -lhistory
-
-
 
 # == END OF USER SETTINGS. NO NEED TO CHANGE ANYTHING BELOW THIS LINE =========
 
@@ -52,12 +64,12 @@ LIB_O=	lbaselib.o lcorolib.o ldblib.o ltablib.o lstrlib.o lpico8lib.o linit.o
 LUA_T=	z8lua
 LUA_O=	lua.o
 
-#LUAC_T=	luac
-#LUAC_O=	luac.o print.o
 
 ALL_T= $(CORE_T) $(LUA_T) $(LUAC_T)
 ALL_O= $(CORE_O) $(LUA_O) $(LUAC_O) $(AUX_O) $(LIB_O)
 ALL_A= $(CORE_T)
+
+lib:	$(CORE_T)
 
 all:	$(ALL_T)
 
@@ -70,17 +82,17 @@ $(CORE_T): $(CORE_O) $(AUX_O) $(LIB_O)
 	$(RANLIB) $@
 
 $(LUA_T): $(LUA_O) $(CORE_T)
-	$(CC) -o $@ $(MYLDFLAGS) $(LUA_O) $(CORE_T) $(LIBS) $(MYLIBS) $(DL)
+	$(CC) -o $@ -MMD -MP $(MYLDFLAGS) $(LUA_O) $(CORE_T) $(LIBS) $(MYLIBS) $(DL)
 
 $(LUAC_T): $(LUAC_O) $(CORE_T)
-	$(CC) -o $@ $(MYLDFLAGS) $(LUAC_O) $(CORE_T) $(LIBS) $(MYLIBS)
+	$(CC) -o $@ -MMD -MP $(MYLDFLAGS) $(LUAC_O) $(CORE_T) $(LIBS) $(MYLIBS)
 
 clean:
 	rcsclean -u || true
 	$(RM) $(ALL_T) $(ALL_O)
 
 depend:
-	@$(CC) $(CFLAGS) -MM *.c
+	@$(CC) -MMD -MP $(CFLAGS) -MM *.c
 
 echo:
 	@echo "CC = $(CC)"
