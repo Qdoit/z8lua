@@ -21,18 +21,17 @@ ARCH		:= -mthumb -mcpu=arm946e-s+nofp
 SPECS		:= $(BLOCKSDS)/sys/crts/ds_arm9.specs
 
 WARNFLAGS	:= -Wall -Wno-deprecated
-LIBS		:= -lmm9 -lnds9
+LIBS		:= -lmm9 -lnds9 -lstdc++ -lc
 LIBDIRS		:= $(BLOCKSDS)/libs/maxmod \
 		   $(BLOCKSDS)/libs/libnds
 DEFINES		:=
 
 PREFIX		:= $(ARM_NONE_EABI_PATH)arm-none-eabi-
 CC 		:= $(PREFIX)g++
-LD		:= $(PREFIX)gcc
+LD		:= $(PREFIX)g++
 CFLAGS  =  -std=gnu++17 $(WARNFLAGS) $(DEFINES) $(INCLUDEFLAGS) \
 		   $(ARCH) -O2 -ffunction-sections -fdata-sections \
 		   -fno-exceptions -fno-rtti \
-		   -fno-threadsafe-statics \
 		   -specs=$(SPECS)
 
 LDFLAGS		:= $(ARCH) $(LIBDIRSFLAGS) -Wl,-Map,$(MAP) $(DEFINES) \
